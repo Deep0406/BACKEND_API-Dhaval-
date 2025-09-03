@@ -3,12 +3,12 @@ const Item = require("../Models/model");
 
 // configure AWS SDK (reads from .env)
 const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY,
-  secretAccessKey: process.env.AWS_SECRET_KEY,
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,   // update names to match AWS
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   region: process.env.AWS_REGION,
 });
 
-// 1) Generate a signed URL for uploading
+// 1) Generate a signed URL for uploading (optional if you keep this method)
 exports.getUploadUrl = async (req, res) => {
   try {
     const fileName = `${Date.now()}-${req.query.name}`;
@@ -31,12 +31,36 @@ exports.getUploadUrl = async (req, res) => {
   }
 };
 
-// 2) Save item after successful upload
+// 2) Save item with form-data upload
 exports.createItem = async (req, res) => {
   try {
-    const { name, price, note, photoUrl, photoKey } = req.body;
+    const { name, price, note } = req.body;
+    if (!req.file) {
+      return res.status(400).json({ error: "Photo file is required" });
+    }
 
-    const item = await Item.create({ name, price, note, photoUrl, photoKey });
+    // unique file key
+    const fileKey = `${Date.now()}-${req.file.originalname}`;
+
+    // upload buffer to S3
+    const uploadResult = await s3
+      .upload({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: fileKey,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+      })
+      .promise();
+
+    // Save in DB
+    const item = await Item.create({
+      name,
+      price,
+      note,
+      photoUrl: uploadResult.Location, // S3 file URL
+      photoKey: fileKey,
+    });
+
     res.status(201).json(item);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -53,17 +77,18 @@ exports.getItems = async (req, res) => {
   }
 };
 
-// 4) Update item (metadata + optional new photo)
+// 4) Update item (metadata + optional new photo via form-data)
 exports.updateItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, price, note, photoUrl, photoKey } = req.body;
+    const { name, price, note } = req.body;
 
     const item = await Item.findById(id);
     if (!item) return res.status(404).json({ error: "Item not found" });
 
-    // if new photo provided → delete old from S3
-    if (photoUrl && photoKey && (photoKey !== item.photoKey)) {
+    // If new photo uploaded → delete old and upload new
+    if (req.file) {
+      // delete old
       await s3
         .deleteObject({
           Bucket: process.env.AWS_BUCKET_NAME,
@@ -71,8 +96,18 @@ exports.updateItem = async (req, res) => {
         })
         .promise();
 
-      item.photoUrl = photoUrl;
-      item.photoKey = photoKey;
+      const newFileKey = `${Date.now()}-${req.file.originalname}`;
+      const uploadResult = await s3
+        .upload({
+          Bucket: process.env.AWS_BUCKET_NAME,
+          Key: newFileKey,
+          Body: req.file.buffer,
+          ContentType: req.file.mimetype,
+        })
+        .promise();
+
+      item.photoUrl = uploadResult.Location;
+      item.photoKey = newFileKey;
     }
 
     if (name !== undefined) item.name = name;
@@ -86,6 +121,7 @@ exports.updateItem = async (req, res) => {
   }
 };
 
+// 5) Delete item (DB + S3)
 exports.deleteItem = async (req, res) => {
   try {
     const { id } = req.params;
