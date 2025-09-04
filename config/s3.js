@@ -6,4 +6,17 @@ const s3 = new AWS.S3({
   region: process.env.AWS_REGION,
 });
 
+// Helper function for uploads (with public-read ACL)
+export const uploadToS3 = (fileBuffer, fileName, mimeType) => {
+  const params = {
+    Bucket: process.env.AWS_BUCKET_NAME,
+    Key: fileName,
+    Body: fileBuffer,
+    ContentType: mimeType,
+    ACL: "public-read", // 👈 makes file publicly accessible
+  };
+
+  return s3.upload(params).promise();
+};
+
 export default s3;

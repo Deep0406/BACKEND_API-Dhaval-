@@ -1,22 +1,16 @@
-const AWS = require("aws-sdk");
 const Item = require("../Models/model");
+const { s3,  uploadToS3 } = require("../config/s3"); // 👈 import s3 + helper
 
-// configure AWS SDK (reads from .env)
-const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION,
-});
-
-// 1) Generate a signed URL for uploading (optional if you keep this method)
+// 1) Generate a signed URL for uploading (optional, still works)
 exports.getUploadUrl = async (req, res) => {
   try {
     const fileName = `${Date.now()}-${req.query.name}`;
     const params = {
       Bucket: process.env.AWS_BUCKET_NAME,
       Key: fileName,
-      Expires: 60, // URL valid for 60s
-      ContentType: req.query.type, // e.g., "image/png"
+      Expires: 60, // valid for 60s
+      ContentType: req.query.type, // e.g., image/png
+      ACL: "public-read", // 👈 ensure public link
     };
 
     const uploadUrl = await s3.getSignedUrlPromise("putObject", params);
@@ -36,7 +30,6 @@ exports.createItem = async (req, res) => {
   try {
     const { name, price, note } = req.body;
 
-    // Handle uploaded file (either "photo" or "file")
     const uploadedFile =
       (req.files?.photo && req.files.photo[0]) ||
       (req.files?.file && req.files.file[0]);
@@ -47,22 +40,19 @@ exports.createItem = async (req, res) => {
 
     const fileKey = `${Date.now()}-${uploadedFile.originalname}`;
 
-    // Upload to S3
-    const uploadResult = await s3
-      .upload({
-        Bucket: process.env.AWS_BUCKET_NAME,
-        Key: fileKey,
-        Body: uploadedFile.buffer,
-        ContentType: uploadedFile.mimetype,
-      })
-      .promise();
+    // Upload to S3 via helper
+    const uploadResult = await uploadToS3(
+      uploadedFile.buffer,
+      fileKey,
+      uploadedFile.mimetype
+    );
 
     // Save in DB
     const item = await Item.create({
       name,
-      price: Number(price), // force number
+      price: Number(price),
       note,
-      photoUrl: uploadResult.Location,
+      photoUrl: uploadResult.Location, // direct public URL
       photoKey: fileKey,
     });
 
@@ -82,7 +72,7 @@ exports.getItems = async (req, res) => {
   }
 };
 
-// 4) Update item (metadata + optional new photo/file via form-data)
+// 4) Update item (metadata + optional new photo/file)
 exports.updateItem = async (req, res) => {
   try {
     const { id } = req.params;
@@ -107,14 +97,11 @@ exports.updateItem = async (req, res) => {
       }
 
       const newFileKey = `${Date.now()}-${uploadedFile.originalname}`;
-      const uploadResult = await s3
-        .upload({
-          Bucket: process.env.AWS_BUCKET_NAME,
-          Key: newFileKey,
-          Body: uploadedFile.buffer,
-          ContentType: uploadedFile.mimetype,
-        })
-        .promise();
+      const uploadResult = await uploadToS3(
+        uploadedFile.buffer,
+        newFileKey,
+        uploadedFile.mimetype
+      );
 
       item.photoUrl = uploadResult.Location;
       item.photoKey = newFileKey;
