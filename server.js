@@ -13,7 +13,7 @@ app.use(express.json()); // modern replacement for body-parser
 app.use(express.urlencoded({ extended: true }));
 
 // MongoDB connection
-mongoose.connect(process.env.MONGO_DB)
+mongoose.connect(process.env.Mongo_DB)
   .then(() => console.log("Database connected successfully..."))
   .catch((err) => console.error("Database connection error:", err));
 
