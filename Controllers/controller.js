@@ -7,10 +7,14 @@ const upload = require("../config/multer"); // 👈 Multer-Cloudinary
 // 1) Create item with form-data upload
 exports.createItem = async (req, res) => {
   try {
-    const { name, price, note } = req.body;
+    const { name, price, note, category } = req.body;
 
     if (!req.file) {
       return res.status(400).json({ error: "Photo/file is required" });
+    }
+
+    if (!category) {
+      return res.status(400).json({ error: "Category is required" });
     }
 
     // Multer-storage-cloudinary already uploads directly to Cloudinary
@@ -21,6 +25,7 @@ exports.createItem = async (req, res) => {
       name,
       price: Number(price),
       note,
+      category,                // 👈 added category
       photoUrl: uploaded.path, // Cloudinary URL
       photoKey: uploaded.filename, // Cloudinary public_id
     });
@@ -30,6 +35,7 @@ exports.createItem = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
 
 // 2) Fetch all items
 exports.getItems = async (req, res) => {
@@ -45,7 +51,7 @@ exports.getItems = async (req, res) => {
 exports.updateItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, price, note } = req.body;
+    const { name, price, note, category } = req.body; // 👈 added category
 
     const item = await Item.findById(id);
     if (!item) return res.status(404).json({ error: "Item not found" });
@@ -64,6 +70,7 @@ exports.updateItem = async (req, res) => {
     if (name !== undefined) item.name = name;
     if (price !== undefined) item.price = Number(price);
     if (note !== undefined) item.note = note;
+    if (category !== undefined) item.category = category; // 👈 update category if provided
 
     const updatedItem = await item.save();
     res.json(updatedItem);
@@ -71,6 +78,7 @@ exports.updateItem = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
 
 // 4) Delete item
 exports.deleteItem = async (req, res) => {
