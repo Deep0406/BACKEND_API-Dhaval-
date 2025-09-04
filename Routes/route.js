@@ -1,4 +1,20 @@
 const express = require("express");
+const router = express.Router();
+
+const itemController = require("../Controllers/controller");
+const upload = require("../config/multer"); // multer-storage-cloudinary setup
+
+// Routes
+router.post("/items", upload.single("photo"), itemController.createItem);
+router.get("/items", itemController.getItems);
+router.put("/items/:id", upload.single("photo"), itemController.updateItem);
+router.delete("/items/:id", itemController.deleteItem);
+
+module.exports = router;
+
+
+
+/*const express = require("express");
 const multer = require("multer");
 const {
   getUploadUrl,
@@ -43,3 +59,4 @@ router.patch(
 router.delete("/:id", deleteItem);
 
 module.exports = router;
+*/
