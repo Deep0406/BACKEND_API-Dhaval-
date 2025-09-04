@@ -5,10 +5,10 @@ const itemController = require("../Controllers/controller");
 const upload = require("../config/multer"); // multer-storage-cloudinary setup
 
 // Routes
-router.post("/items", upload.single("photo"), itemController.createItem);
-router.get("/items", itemController.getItems);
-router.put("/items/:id", upload.single("photo"), itemController.updateItem);
-router.delete("/items/:id", itemController.deleteItem);
+router.post("/", upload.single("photo"), itemController.createItem);
+router.get("/", itemController.getItems);
+router.put("/:id", upload.single("photo"), itemController.updateItem);
+router.delete("/:id", itemController.deleteItem);
 
 module.exports = router;
 
