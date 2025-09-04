@@ -1,30 +1,31 @@
-const express=require("express");
-const cors=require("cors");
-const bodyPArser=require("body-parser");
-const dotEnv=require("dotenv");
-const mongoose=require("mongoose");
+const express = require("express");
+const cors = require("cors");
+const mongoose = require("mongoose");
+const dotenv = require("dotenv");
 
-const app=express();
+dotenv.config();
 
+const app = express();
+
+// Middleware
 app.use(cors());
-app.use(bodyPArser.json());
-dotEnv.config();
-mongoose.connect(process.env.Mongo_DB)
-        .then(()=>{
-            console.log("database connected successfully...")
-        })
-        .catch((e)=>{
-            console.log("Database error due to",e)
-        })
+app.use(express.json()); // modern replacement for body-parser
+app.use(express.urlencoded({ extended: true }));
 
-app.get("/",(req,res)=>{
-    res.send("Inializing Backend...");
-})
+// MongoDB connection
+mongoose.connect(process.env.MONGO_DB)
+  .then(() => console.log("Database connected successfully..."))
+  .catch((err) => console.error("Database connection error:", err));
+
+// Routes
+app.get("/", (req, res) => {
+  res.send("Initializing Backend...");
+});
 
 app.use("/api/items", require("./Routes/route"));
 
-const PORT=process.env.PORTS || 3001;
-
-app.listen(PORT,()=>{
-    console.log(`This server is listening On http://localhost:${PORT}`);
-})
+// Start server
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+  console.log(`Server is listening on http://localhost:${PORT}`);
+});
