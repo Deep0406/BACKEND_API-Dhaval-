@@ -16,8 +16,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 // Step 1: get signed upload URL (optional if using direct form-data uploads)
 router.get("/upload-url", getUploadUrl);
 
-// Step 2: save item metadata + photo (form-data)
-// Accepts either "photo" or "file" as the field name for the uploaded file
+// Step 2: save item metadata + photo/file (form-data)
 router.post(
   "/",
   upload.fields([
@@ -30,7 +29,7 @@ router.post(
 // Fetch all items
 router.get("/", getItems);
 
-// Update item (metadata + optional new photo via form-data)
+// Step 3: update item (metadata + optional new photo/file via form-data)
 router.patch(
   "/:id",
   upload.fields([
@@ -40,7 +39,7 @@ router.patch(
   updateItem
 );
 
-// Delete item (DB + S3)
+// Step 4: delete item (DB + S3)
 router.delete("/:id", deleteItem);
 
 module.exports = router;

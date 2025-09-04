@@ -3,7 +3,7 @@ const Item = require("../Models/model");
 
 // configure AWS SDK (reads from .env)
 const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,   // update names to match AWS
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   region: process.env.AWS_REGION,
 });
@@ -36,19 +36,18 @@ exports.createItem = async (req, res) => {
   try {
     const { name, price, note } = req.body;
 
-    // Check if uploaded file exists (photo OR file)
+    // Handle uploaded file (either "photo" or "file")
     const uploadedFile =
-      (req.files && req.files.photo && req.files.photo[0]) ||
-      (req.files && req.files.file && req.files.file[0]);
+      (req.files?.photo && req.files.photo[0]) ||
+      (req.files?.file && req.files.file[0]);
 
     if (!uploadedFile) {
-      return res.status(400).json({ error: "Photo file is required" });
+      return res.status(400).json({ error: "Photo/file is required" });
     }
 
-    // unique file key
     const fileKey = `${Date.now()}-${uploadedFile.originalname}`;
 
-    // upload buffer to S3
+    // Upload to S3
     const uploadResult = await s3
       .upload({
         Bucket: process.env.AWS_BUCKET_NAME,
@@ -61,9 +60,9 @@ exports.createItem = async (req, res) => {
     // Save in DB
     const item = await Item.create({
       name,
-      price,
+      price: Number(price), // force number
       note,
-      photoUrl: uploadResult.Location, // S3 file URL
+      photoUrl: uploadResult.Location,
       photoKey: fileKey,
     });
 
@@ -72,7 +71,6 @@ exports.createItem = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-
 
 // 3) Fetch all items
 exports.getItems = async (req, res) => {
@@ -84,7 +82,7 @@ exports.getItems = async (req, res) => {
   }
 };
 
-// 4) Update item (metadata + optional new photo via form-data)
+// 4) Update item (metadata + optional new photo/file via form-data)
 exports.updateItem = async (req, res) => {
   try {
     const { id } = req.params;
@@ -93,13 +91,12 @@ exports.updateItem = async (req, res) => {
     const item = await Item.findById(id);
     if (!item) return res.status(404).json({ error: "Item not found" });
 
-    // Check for uploaded file (photo OR file)
     const uploadedFile =
-      (req.files && req.files.photo && req.files.photo[0]) ||
-      (req.files && req.files.file && req.files.file[0]);
+      (req.files?.photo && req.files.photo[0]) ||
+      (req.files?.file && req.files.file[0]);
 
     if (uploadedFile) {
-      // Delete old file from S3
+      // delete old from S3
       if (item.photoKey) {
         await s3
           .deleteObject({
@@ -124,7 +121,7 @@ exports.updateItem = async (req, res) => {
     }
 
     if (name !== undefined) item.name = name;
-    if (price !== undefined) item.price = price;
+    if (price !== undefined) item.price = Number(price);
     if (note !== undefined) item.note = note;
 
     const updatedItem = await item.save();
@@ -134,7 +131,6 @@ exports.updateItem = async (req, res) => {
   }
 };
 
-
 // 5) Delete item (DB + S3)
 exports.deleteItem = async (req, res) => {
   try {
@@ -143,7 +139,6 @@ exports.deleteItem = async (req, res) => {
 
     if (!item) return res.status(404).json({ error: "Item not found" });
 
-    // Delete photo from S3 (only if photoKey exists)
     if (item.photoKey) {
       await s3
         .deleteObject({
@@ -153,7 +148,6 @@ exports.deleteItem = async (req, res) => {
         .promise();
     }
 
-    // Delete from DB
     await Item.findByIdAndDelete(id);
 
     res.json({ message: "Item deleted successfully" });
@@ -161,4 +155,3 @@ exports.deleteItem = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-
