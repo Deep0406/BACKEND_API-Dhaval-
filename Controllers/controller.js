@@ -35,20 +35,26 @@ exports.getUploadUrl = async (req, res) => {
 exports.createItem = async (req, res) => {
   try {
     const { name, price, note } = req.body;
-    if (!req.file) {
+
+    // Check if uploaded file exists (photo OR file)
+    const uploadedFile =
+      (req.files && req.files.photo && req.files.photo[0]) ||
+      (req.files && req.files.file && req.files.file[0]);
+
+    if (!uploadedFile) {
       return res.status(400).json({ error: "Photo file is required" });
     }
 
     // unique file key
-    const fileKey = `${Date.now()}-${req.file.originalname}`;
+    const fileKey = `${Date.now()}-${uploadedFile.originalname}`;
 
     // upload buffer to S3
     const uploadResult = await s3
       .upload({
         Bucket: process.env.AWS_BUCKET_NAME,
         Key: fileKey,
-        Body: req.file.buffer,
-        ContentType: req.file.mimetype,
+        Body: uploadedFile.buffer,
+        ContentType: uploadedFile.mimetype,
       })
       .promise();
 
@@ -66,6 +72,7 @@ exports.createItem = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
 
 // 3) Fetch all items
 exports.getItems = async (req, res) => {
@@ -86,23 +93,29 @@ exports.updateItem = async (req, res) => {
     const item = await Item.findById(id);
     if (!item) return res.status(404).json({ error: "Item not found" });
 
-    // If new photo uploaded → delete old and upload new
-    if (req.file) {
-      // delete old
-      await s3
-        .deleteObject({
-          Bucket: process.env.AWS_BUCKET_NAME,
-          Key: item.photoKey,
-        })
-        .promise();
+    // Check for uploaded file (photo OR file)
+    const uploadedFile =
+      (req.files && req.files.photo && req.files.photo[0]) ||
+      (req.files && req.files.file && req.files.file[0]);
 
-      const newFileKey = `${Date.now()}-${req.file.originalname}`;
+    if (uploadedFile) {
+      // Delete old file from S3
+      if (item.photoKey) {
+        await s3
+          .deleteObject({
+            Bucket: process.env.AWS_BUCKET_NAME,
+            Key: item.photoKey,
+          })
+          .promise();
+      }
+
+      const newFileKey = `${Date.now()}-${uploadedFile.originalname}`;
       const uploadResult = await s3
         .upload({
           Bucket: process.env.AWS_BUCKET_NAME,
           Key: newFileKey,
-          Body: req.file.buffer,
-          ContentType: req.file.mimetype,
+          Body: uploadedFile.buffer,
+          ContentType: uploadedFile.mimetype,
         })
         .promise();
 
@@ -121,6 +134,7 @@ exports.updateItem = async (req, res) => {
   }
 };
 
+
 // 5) Delete item (DB + S3)
 exports.deleteItem = async (req, res) => {
   try {
@@ -129,15 +143,17 @@ exports.deleteItem = async (req, res) => {
 
     if (!item) return res.status(404).json({ error: "Item not found" });
 
-    // delete photo from S3
-    await s3
-      .deleteObject({
-        Bucket: process.env.AWS_BUCKET_NAME,
-        Key: item.photoKey,
-      })
-      .promise();
+    // Delete photo from S3 (only if photoKey exists)
+    if (item.photoKey) {
+      await s3
+        .deleteObject({
+          Bucket: process.env.AWS_BUCKET_NAME,
+          Key: item.photoKey,
+        })
+        .promise();
+    }
 
-    // delete from DB
+    // Delete from DB
     await Item.findByIdAndDelete(id);
 
     res.json({ message: "Item deleted successfully" });
@@ -145,3 +161,4 @@ exports.deleteItem = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+

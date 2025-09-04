@@ -17,13 +17,28 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.get("/upload-url", getUploadUrl);
 
 // Step 2: save item metadata + photo (form-data)
-router.post("/", upload.single("photo"), createItem);
+// Accepts either "photo" or "file" as the field name for the uploaded file
+router.post(
+  "/",
+  upload.fields([
+    { name: "photo", maxCount: 1 },
+    { name: "file", maxCount: 1 },
+  ]),
+  createItem
+);
 
 // Fetch all items
 router.get("/", getItems);
 
 // Update item (metadata + optional new photo via form-data)
-router.patch("/:id", upload.single("photo"), updateItem);
+router.patch(
+  "/:id",
+  upload.fields([
+    { name: "photo", maxCount: 1 },
+    { name: "file", maxCount: 1 },
+  ]),
+  updateItem
+);
 
 // Delete item (DB + S3)
 router.delete("/:id", deleteItem);
